@@ -183,7 +183,9 @@ updateStorageInconsistencies <- function(criterions) {
   
   for(criterion in criterions) {
     n <- length(getChildren(criterion))
-    if(n > 1) {
+    if(n == 2)
+      result[[criterion]] <- 0
+    else if(n > 2) {
       pcm <- matrix()
       if(criterion %in% storage$criterions_nonleaves) {
         ratios <- storage$ratios_nonleaves[[criterion]]
@@ -395,6 +397,23 @@ shinyServer(function(input, output, session) {
     storage$ratios_nonleaves <- result
     updateStorageInconsistencies(storage$criterions_nonleaves)
     print(storage$inconsistencies_nonleaves)
+  })
+  
+  output$inconsistencies_info <- renderUI({
+    
+    container <- tags$div(style = "margin-top: 25px;")
+    for(criterion in storage$criterions_nonleaves) {
+      inconsistency <- storage$inconsistencies_nonleaves[[criterion]]
+      info <- tags$p(paste("Inconsistency of", criterion, "comparisons:", inconsistency))
+      
+      if(inconsistency > input$threshhold)
+        info <- tagAppendAttributes(info, style = "color: red; font-weight: bold;")
+      else
+        info <- tagAppendAttributes(info, style = "color: green;")
+      
+      container <- tagAppendChild(container, info)
+    }
+    return(container)
   })
   
   
