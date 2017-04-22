@@ -7,6 +7,9 @@ shinyUI(navbarPage("AHP Criteria Tree XML Creator",
     sidebarLayout(position = "right",
       sidebarPanel(
         
+        # Goal name
+        textInput("goal_name", "Goal name", placeholder = "Enter name of decision goal"),
+        
         # Add Criterion section
         h3("Add Criterion"),
         textInput("crit_name", "Criterion name", placeholder = "Enter criterion name"),
@@ -60,5 +63,8 @@ shinyUI(navbarPage("AHP Criteria Tree XML Creator",
     )
   ),
   
-  tabPanel("Export XML")
+  tabPanel("Export XML",
+    h3("Download the XML file representing your decisions"),
+    downloadButton("download", label = "Download XML")
+  )
 ))

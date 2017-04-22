@@ -1,6 +1,7 @@
 library(shiny)
 library(data.tree) # for manipulating hierarchical data
 library(networkD3) # for plotting beautiful network graphs
+library(XML)
 
 setwd(dir = "/home/bzdeco/Documents/agh/badania/")
 
@@ -63,19 +64,65 @@ saaty_rates_values <- c(1/9, 1/8, 1/7, 1/6, 1/5, 1/4, 1/3, 1/2, 1, 2, 3, 4, 5, 6
 # Random Index - Consistency Index for an avarage randomly generated matrix (from n = 3 to n = 10)
 RI <- c(0.5247, 0.8816, 1.1086, 1.2479, 1.3417, 1.4057, 1.4499, 1.4854)
 
-# Transform relation lists into hierarchical list
-relationsToList <- function() {
+# Recursive function starting from criterion and building XML tree of its subcriterions
+createComparionsXMLTree <- function(parentNode, criterion) {
   
-  relations <- data.frame()
-  if(length(storage$source) < 1)
-    relations <- data.frame(c("Goal"), c("<Empty>"))
-  else
-    relations <- data.frame(storage$source, storage$target)
+  comparisonsT <- xmlNode("comparisons")
   
-  # Transforms relation data.frame into tree and then into hierarchical list
-  tree <- FromDataFrameNetwork(relations)
+  # Comparison of criterions
+  if(criterion %in% storage$criterions_nonleaves) {
+    
+    # Comparisons Tag
+    if(length(getChildren(criterion)) > 0) {
+      ratios <- storage$ratios_nonleaves[[criterion]]
+      for(ratio in ratios)
+        comparisonsT <- addChildren(comparisonsT, xmlNode("ratio", ratio))
+    }
+    parentNode <- addChildren(parentNode, comparisonsT)
+    
+    for(subcriterion in getChildrenCriterions(criterion)) {
+      criterionT <- xmlNode("criterion", attrs = c(name = tolower(gsub(" ", "_", subcriterion))))
+      
+      # recursive call
+      criterionT <- createComparionsXMLTree(criterionT, subcriterion)
+      
+      parentNode <- addChildren(parentNode, criterionT)
+    }
+    
+  } 
+  # Comparison of alternatives
+  else {
+    
+    # Comparisons Tag
+    if(length(getChildren(criterion)) > 0) {
+      ratios <- storage$ratios_leaves[[criterion]]
+      for(ratio in ratios)
+        comparisonsT <- addChildren(comparisonsT, xmlNode("ratio", ratio))
+    }
+    
+    parentNode <- addChildren(parentNode, comparisonsT)
+  }
   
-  return(ToListExplicit(tree, unname = TRUE))
+  return(parentNode)
+}
+
+# Create XML from data provided by user
+convertDataToXML <- function(input) {
+  ahpT <- xmlNode("ahp")
+  goalT <- xmlNode("goal", attrs = c(name = tolower(gsub(" ", "_", input$goal_name))))
+  alternativesT <- xmlNode("alternatives")
+  
+  # Add criterions tags
+  
+  goalT <- createComparionsXMLTree(goalT, "Goal")
+  
+  # Add alternative tags
+  for(alternative in storage$alternatives)
+    alternativesT <- addChildren(alternativesT, xmlNode("alternative", alternative))
+  
+  ahpT <- addChildren(ahpT, goalT, alternativesT)
+  
+  return(saveXML(ahpT))
 }
 
 # Get leaf- and nonleaf-criterions from criteria tree
@@ -141,6 +188,21 @@ ratiosToMatrix <- function(ratios) {
   }
   
   return(PCMatrix)
+}
+
+# Transform relation lists into hierarchical list
+relationsToList <- function() {
+  
+  relations <- data.frame()
+  if(length(storage$source) < 1)
+    relations <- data.frame(c("Goal"), c("<Empty>"))
+  else
+    relations <- data.frame(storage$source, storage$target)
+  
+  # Transforms relation data.frame into tree and then into hierarchical list
+  tree <- FromDataFrameNetwork(relations)
+  
+  return(ToListExplicit(tree, unname = TRUE))
 }
 
 # Render inconsistency info about comparisons with regard to given criterions
@@ -503,7 +565,13 @@ shinyServer(function(input, output, session) {
   
   ## Export XML Tab
   
-  
+  output$download <- downloadHandler(
+    filename = "ahp-criteria-tree.xml",
+    content = function(file) {
+      write(convertDataToXML(input), file)
+    },
+    contentType = "text/xml"
+  )
   
 })
 
