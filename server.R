@@ -12,7 +12,7 @@ storage <- reactiveValues(
   source = c(),
   target = c(),
   alternatives = c(),
-  ratios = list()
+  ratios = list('Goal' = c())
 )
 
 saaty_rates <- c(
@@ -34,6 +34,8 @@ saaty_rates <- c(
   "8 times more important than",
   "9 times more important than"
 )
+
+saaty_rates_values <- c(1/9, 1/8, 1/7, 1/6, 1/5, 1/4, 1/3, 1/2, 1, 2, 3, 4, 5, 6, 7, 8, 9)
 
 # Random Index - Consistency Index for an avarage randomly generated matrix (from n = 3 to n = 10)
 RI <- c(0.5247, 0.8816, 1.1086, 1.2479, 1.3417, 1.4057, 1.4499, 1.4854)
@@ -66,6 +68,7 @@ getCriterionsByType <- function() {
   return(leaves)
 }
 
+# Get subcriterions of the given criterion
 getChildrenCriterions <- function(criterion_name) {
   
   result <- c()
@@ -74,6 +77,15 @@ getChildrenCriterions <- function(criterion_name) {
       result <- append(result, storage$target[i])
   
   return(result)
+}
+
+# Get children (subcriterions or alternatives) of given criterion
+getChildren <- function(criterion_name) {
+  
+  if(criterion_name %in% storage$source)
+    return(getChildrenCriterions(criterion_name))
+  else
+    return(storage$alternatives)
 }
 
 # Evaluate Consistency Ratio
@@ -123,6 +135,25 @@ updateSelections <- function(session, selectedParent = "Goal") {
   updateSelectInput(session, "del_alt_select", choices = storage$alternatives)
 }
 
+# Update comparison ratios for all criterions
+updateStorageRatios <- function() {
+  
+  # clear ratios list
+  result <- list()
+  
+  for(criterion in storage$criterions) {
+    n <- length(getChildren(criterion))
+    if(n > 1) {
+      # evaluate number of comparisons in criterion
+      ratios <- rep(1, (n^2-n)/2)
+      # add vector of comparisons named <criterion> to list of ratios
+      result[[criterion]] <- ratios
+    }
+  }
+  
+  return(result)
+}
+
 # Update hierarchy network graph
 updateGraph <- function(output) {
   output$graph <- renderSimpleNetwork({
@@ -138,7 +169,7 @@ shinyServer(function(input, output, session) {
   
   ## Create Criterion Tree Tab
   
-  # Add Criterion Button
+  #  > Add Criterion Button
   observeEvent(input$add_crit, {
     
     # Update storage
@@ -147,12 +178,13 @@ shinyServer(function(input, output, session) {
     storage$target <- append(storage$target, input$crit_name)
     storage$criterions_leaves <- getCriterionsByType()$leaves
     storage$criterions_nonleaves <- getCriterionsByType()$nonleaves
+    storage$ratios <- updateStorageRatios()
     
     updateSelections(session, selectedParent = input$parent_select)
     updateGraph(output)
   })
   
-  # Delete Criterion Button
+  #  > Delete Criterion Button
   observeEvent(input$del_crit, {
     
     # Remove all relations with this node on source and target list
@@ -196,15 +228,17 @@ shinyServer(function(input, output, session) {
     
     storage$criterions_leaves <- getCriterionsByType()$leaves
     storage$criterions_nonleaves <- getCriterionsByType()$nonleaves
+    storage$ratios <- updateStorageRatios()
     
     updateSelections(session)
     updateGraph(output)
   })
   
-  # Add Alternative Button
+  #  > Add Alternative Button
   observeEvent(input$add_alt, {
     
     storage$alternatives <- append(storage$alternatives, input$alt_name)
+    storage$ratios <- updateStorageRatios()
     
     insertUI(
       selector = "#alternatives_list",
@@ -215,7 +249,7 @@ shinyServer(function(input, output, session) {
     updateSelections(session)
   })
   
-  # Delete Alternative Button
+  #  > Delete Alternative Button
   observeEvent(input$del_alt, {
     
     # Remove alternative from storage
@@ -232,6 +266,7 @@ shinyServer(function(input, output, session) {
     )
     
     updateSelections(session)
+    storage$ratios <- updateStorageRatios()
   })
   
   
@@ -251,10 +286,11 @@ shinyServer(function(input, output, session) {
       container <- tagAppendChild(container, tags$h3(paste(criterion, "subcriterions rating")))
       
       # render all subcriterion comparisons
-      i <- 1; j <- 1; k <- 1
-      while(i <= length(children_criterions)) {
+      k <- 1
+      for(i in seq(1, length(children_criterions))) {
         j <- i + 1
         while(j <= length(children_criterions)) {
+          # single comparison
           container <- tagAppendChild(container, fluidRow(
             column(3, tags$span(paste(children_criterions[i], "is"))),
             column(6, style = "margin-top: -25px;", selectInput(
@@ -267,7 +303,6 @@ shinyServer(function(input, output, session) {
           ))
           j <- j + 1; k <- k + 1
         }
-        i <- i + 1
       }
       page <- tagAppendChild(page, container)
     }
@@ -291,9 +326,11 @@ shinyServer(function(input, output, session) {
       container <- tagAppendChild(container, tags$h3(paste("Rating with regard to", criterion)))
       
       # render all alternatives comparisons
+      k <- 1
       for(i in seq(1, length(storage$alternatives))) {
-        j <- i + 1; k <- 1;
+        j <- i + 1
         while(j <= length(storage$alternatives)) {
+          # single comparison
           container <- tagAppendChild(container, fluidRow(
             column(3, tags$span(paste(storage$alternatives[i], "is"))),
             column(6, style = "margin-top: -25px;", selectInput(
