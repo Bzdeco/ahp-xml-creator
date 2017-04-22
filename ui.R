@@ -39,7 +39,7 @@ shinyUI(navbarPage("AHP Criteria Tree XML Creator",
   ),
   
   navbarMenu("Rate",
-    tabPanel("Criteria",
+    tabPanel("Criterions",
       fluidRow(
         column(6, uiOutput("rate_criterions_ratios")),
         column(3, offset = 3, actionButton("save_criterions_ratios", "Save comparisons", style = "width: 80%;"))

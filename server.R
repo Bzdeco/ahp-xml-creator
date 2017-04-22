@@ -12,7 +12,8 @@ storage <- reactiveValues(
   source = c(),
   target = c(),
   alternatives = c(),
-  ratios = list('Goal' = c())
+  ratios_nonleaves = list('Goal' = c()),
+  ratios_leaves = list()
 )
 
 saaty_rates <- c(
@@ -33,6 +34,26 @@ saaty_rates <- c(
   "7 times more important than",
   "8 times more important than",
   "9 times more important than"
+)
+
+saaty_rates_dict <- list(
+  "9 times less important than" = 1/9,
+  "8 times less important than" = 1/8,
+  "7 times less important than" = 1/7,
+  "6 times less important than" = 1/6,
+  "5 times less important than" = 1/5,
+  "4 times less important than" = 1/4,
+  "3 times less important than" = 1/3,
+  "2 times less important than" = 1/2,
+  "as important as" = 1,
+  "2 times more important than" = 2,
+  "3 times more important than" = 3,
+  "4 times more important than" = 4,
+  "5 times more important than" = 5,
+  "6 times more important than" = 6,
+  "7 times more important than" = 7,
+  "8 times more important than" = 8,
+  "9 times more important than" = 9
 )
 
 saaty_rates_values <- c(1/9, 1/8, 1/7, 1/6, 1/5, 1/4, 1/3, 1/2, 1, 2, 3, 4, 5, 6, 7, 8, 9)
@@ -135,13 +156,12 @@ updateSelections <- function(session, selectedParent = "Goal") {
   updateSelectInput(session, "del_alt_select", choices = storage$alternatives)
 }
 
-# Update comparison ratios for all criterions
-updateStorageRatios <- function() {
+# Update comparison ratios for given criterions
+updateStorageRatios <- function(criterions) {
   
-  # clear ratios list
-  result <- list()
+  result <- list() # clear ratios list
   
-  for(criterion in storage$criterions) {
+  for(criterion in criterions) {
     n <- length(getChildren(criterion))
     if(n > 1) {
       # evaluate number of comparisons in criterion
@@ -178,7 +198,8 @@ shinyServer(function(input, output, session) {
     storage$target <- append(storage$target, input$crit_name)
     storage$criterions_leaves <- getCriterionsByType()$leaves
     storage$criterions_nonleaves <- getCriterionsByType()$nonleaves
-    storage$ratios <- updateStorageRatios()
+    storage$ratios_nonleaves <- updateStorageRatios(storage$criterions_nonleaves)
+    storage$ratios_leaves <- updateStorageRatios(storage$criterions_leaves)
     
     updateSelections(session, selectedParent = input$parent_select)
     updateGraph(output)
@@ -228,7 +249,8 @@ shinyServer(function(input, output, session) {
     
     storage$criterions_leaves <- getCriterionsByType()$leaves
     storage$criterions_nonleaves <- getCriterionsByType()$nonleaves
-    storage$ratios <- updateStorageRatios()
+    storage$ratios_nonleaves <- updateStorageRatios(storage$criterions_nonleaves)
+    storage$ratios_leaves <- updateStorageRatios(storage$criterions_leaves)
     
     updateSelections(session)
     updateGraph(output)
@@ -238,7 +260,8 @@ shinyServer(function(input, output, session) {
   observeEvent(input$add_alt, {
     
     storage$alternatives <- append(storage$alternatives, input$alt_name)
-    storage$ratios <- updateStorageRatios()
+    storage$ratios_nonleaves <- updateStorageRatios(storage$criterions_nonleaves)
+    storage$ratios_leaves <- updateStorageRatios(storage$criterions_leaves)
     
     insertUI(
       selector = "#alternatives_list",
@@ -266,12 +289,14 @@ shinyServer(function(input, output, session) {
     )
     
     updateSelections(session)
-    storage$ratios <- updateStorageRatios()
+    storage$ratios_nonleaves <- updateStorageRatios(storage$criterions_nonleaves)
+    storage$ratios_leaves <- updateStorageRatios(storage$criterions_leaves)
   })
   
   
   ## Rate Criterions Tab
   
+  #  > Render selectInputs for comparisons of non-leaf criterions
   output$rate_criterions_ratios <- renderUI({
     
     # container for all comparisons lists
@@ -310,9 +335,34 @@ shinyServer(function(input, output, session) {
     return(page)
   })
   
+  #  > Save comparisons of non-leaf criterions
+  observeEvent(input$save_criterions_ratios, {
+    
+    result <- list() # clear list for new ratios values
+    
+    for(criterion in storage$criterions_nonleaves) {
+      n <- length(getChildren(criterion))
+      count <- (n^2-n)/2 # number of comparisons and consequently selectInputs for one criterion
+      ratios <- c()
+      if(n > 1) {
+        for(i in seq(1, count)) {
+          option <- input[[paste(criterion, i)]] # value selected in according selectInput
+          ratios <- append(ratios, saaty_rates_dict[[option]])
+        }
+      }
+      
+      result[[criterion]] <- ratios
+    }
+    
+    # update storage$ratios_nonleaves with new values
+    storage$ratios_nonleaves <- result
+    print(storage$ratios_nonleaves)
+  })
+  
   
   ## Rate Alternatives Tab
   
+  #  > Render selectInputs for comparisons of leaf criterions
   output$rate_alternatives_ratios <- renderUI({
     
     # container for all comparisons lists
@@ -350,6 +400,31 @@ shinyServer(function(input, output, session) {
     return(page)
   })
   
+  #  > Save comparisons of leaf criterions
+  observeEvent(input$save_alternatives_ratios, {
+    
+    result <- list() # clear list for new ratios values
+    
+    for(criterion in storage$criterions_leaves) {
+      n <- length(getChildren(criterion))
+      count <- (n^2-n)/2 # number of comparisons and consequently selectInputs for one criterion
+      ratios <- c()
+      if(n > 1) {
+        for(i in seq(1, count)) {
+          option <- input[[paste(criterion, i)]] # value selected in according selectInput
+          ratios <- append(ratios, saaty_rates_dict[[option]])
+        }
+      }
+      
+      result[[criterion]] <- ratios
+    }
+    
+    # update storage$ratios_leaves with new values
+    storage$ratios_leaves <- result
+    print(storage$ratios_leaves)
+
+  })
+  
   
   ## Export XML Tab
   
@@ -360,3 +435,4 @@ shinyServer(function(input, output, session) {
 ### test
 # m <- ratiosToMatrix(c(2, 3, 5))
 # print(evaluateCR(m))
+#print(saaty_rates_dict)
