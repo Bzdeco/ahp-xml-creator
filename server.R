@@ -13,7 +13,9 @@ storage <- reactiveValues(
   target = c(),
   alternatives = c(),
   ratios_nonleaves = list('Goal' = c()),
-  ratios_leaves = list()
+  ratios_leaves = list(),
+  inconsistencies_nonleaves = list(),
+  inconsistencies_leaves = list()
 )
 
 saaty_rates <- c(
@@ -156,7 +158,7 @@ updateSelections <- function(session, selectedParent = "Goal") {
   updateSelectInput(session, "del_alt_select", choices = storage$alternatives)
 }
 
-# Update comparison ratios for given criterions
+# Update comparison ratios for given criterions (leaf/non-leaf)
 updateStorageRatios <- function(criterions) {
   
   result <- list() # clear ratios list
@@ -172,6 +174,32 @@ updateStorageRatios <- function(criterions) {
   }
   
   return(result)
+}
+
+# Update CR values for given criterions (leaf/non-leaf)
+updateStorageInconsistencies <- function(criterions) {
+  
+  result <- list()
+  
+  for(criterion in criterions) {
+    n <- length(getChildren(criterion))
+    if(n > 1) {
+      pcm <- matrix()
+      if(criterion %in% storage$criterions_nonleaves) {
+        ratios <- storage$ratios_nonleaves[[criterion]]
+        pcm <- ratiosToMatrix(ratios)
+      } else { # criterion in criterions_leaves
+        ratios <- storage$ratios_leaves[[criterion]]
+        pcm <- ratiosToMatrix(ratios)
+      }
+      result[[criterion]] <- round(evaluateCR(pcm), 2)
+    }
+  }
+  
+  if(criterion %in% storage$criterions_nonleaves)
+    storage$inconsistencies_nonleaves <- result
+  else
+    storage$inconsistencies_leaves <- result
 }
 
 # Update hierarchy network graph
@@ -201,6 +229,8 @@ shinyServer(function(input, output, session) {
     storage$ratios_nonleaves <- updateStorageRatios(storage$criterions_nonleaves)
     storage$ratios_leaves <- updateStorageRatios(storage$criterions_leaves)
     
+    updateStorageInconsistencies(storage$criterions_nonleaves)
+    updateStorageInconsistencies(storage$criterions_leaves)
     updateSelections(session, selectedParent = input$parent_select)
     updateGraph(output)
   })
@@ -252,6 +282,8 @@ shinyServer(function(input, output, session) {
     storage$ratios_nonleaves <- updateStorageRatios(storage$criterions_nonleaves)
     storage$ratios_leaves <- updateStorageRatios(storage$criterions_leaves)
     
+    updateStorageInconsistencies(storage$criterions_nonleaves)
+    updateStorageInconsistencies(storage$criterions_leaves)
     updateSelections(session)
     updateGraph(output)
   })
@@ -269,6 +301,8 @@ shinyServer(function(input, output, session) {
       ui = tags$li(`id` = input$alt_name, input$alt_name)
     )
     
+    updateStorageInconsistencies(storage$criterions_nonleaves)
+    updateStorageInconsistencies(storage$criterions_leaves)
     updateSelections(session)
   })
   
@@ -288,9 +322,12 @@ shinyServer(function(input, output, session) {
       selector = paste("#", input$del_alt_select, sep = "")
     )
     
-    updateSelections(session)
     storage$ratios_nonleaves <- updateStorageRatios(storage$criterions_nonleaves)
     storage$ratios_leaves <- updateStorageRatios(storage$criterions_leaves)
+    
+    updateStorageInconsistencies(storage$criterions_nonleaves)
+    updateStorageInconsistencies(storage$criterions_leaves)
+    updateSelections(session)
   })
   
   
@@ -354,9 +391,10 @@ shinyServer(function(input, output, session) {
       result[[criterion]] <- ratios
     }
     
-    # update storage$ratios_nonleaves with new values
+    # update storage$ratios_nonleaves and $inconsistencies_nonleaves with new values
     storage$ratios_nonleaves <- result
-    print(storage$ratios_nonleaves)
+    updateStorageInconsistencies(storage$criterions_nonleaves)
+    print(storage$inconsistencies_nonleaves)
   })
   
   
@@ -419,9 +457,10 @@ shinyServer(function(input, output, session) {
       result[[criterion]] <- ratios
     }
     
-    # update storage$ratios_leaves with new values
+    # update storage$ratios_leaves and $inconsistencies_leaves with new values
     storage$ratios_leaves <- result
-    print(storage$ratios_leaves)
+    updateStorageInconsistencies(storage$criterions_leaves)
+    print(storage$inconsistencies_leaves)
 
   })
   
@@ -435,4 +474,4 @@ shinyServer(function(input, output, session) {
 ### test
 # m <- ratiosToMatrix(c(2, 3, 5))
 # print(evaluateCR(m))
-#print(saaty_rates_dict)
+# print(saaty_rates_dict)
