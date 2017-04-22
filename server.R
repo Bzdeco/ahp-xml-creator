@@ -143,6 +143,26 @@ ratiosToMatrix <- function(ratios) {
   return(PCMatrix)
 }
 
+# Render inconsistency info about comparisons with regard to given criterions
+renderInconsistencyInfo <- function(threshhold, criterions, inconsistencies) {
+  
+  container <- tags$div(style = "margin-top: 25px;")
+  
+  for(criterion in criterions) {
+    inconsistency <- inconsistencies[[criterion]]
+    info <- tags$p(paste("Inconsistency of", criterion, "comparisons:", inconsistency))
+    
+    if(inconsistency > threshhold)
+      info <- tagAppendAttributes(info, style = "color: red; font-weight: bold;")
+    else
+      info <- tagAppendAttributes(info, style = "color: green;")
+    
+    container <- tagAppendChild(container, info)
+  }
+  
+  return(container)
+}
+
 # Update all selectInputs with up-to-date values
 updateSelections <- function(session, selectedParent = "Goal") {
   
@@ -374,6 +394,13 @@ shinyServer(function(input, output, session) {
     return(page)
   })
   
+  #  > Render information about inconsistencies in comparisons of criterions
+  output$criterions_inconsistencies_info <- renderUI({
+    
+    renderInconsistencyInfo(input$threshhold, storage$criterions_nonleaves, storage$inconsistencies_nonleaves)
+    
+  })
+  
   #  > Save comparisons of non-leaf criterions
   observeEvent(input$save_criterions_ratios, {
     
@@ -397,23 +424,6 @@ shinyServer(function(input, output, session) {
     storage$ratios_nonleaves <- result
     updateStorageInconsistencies(storage$criterions_nonleaves)
     print(storage$inconsistencies_nonleaves)
-  })
-  
-  output$inconsistencies_info <- renderUI({
-    
-    container <- tags$div(style = "margin-top: 25px;")
-    for(criterion in storage$criterions_nonleaves) {
-      inconsistency <- storage$inconsistencies_nonleaves[[criterion]]
-      info <- tags$p(paste("Inconsistency of", criterion, "comparisons:", inconsistency))
-      
-      if(inconsistency > input$threshhold)
-        info <- tagAppendAttributes(info, style = "color: red; font-weight: bold;")
-      else
-        info <- tagAppendAttributes(info, style = "color: green;")
-      
-      container <- tagAppendChild(container, info)
-    }
-    return(container)
   })
   
   
@@ -455,6 +465,13 @@ shinyServer(function(input, output, session) {
     }
     
     return(page)
+  })
+  
+  #  > Render information about inconsistencies in comparisons of alternatives
+  output$alternatives_inconsistencies_info <- renderUI({
+    
+    renderInconsistencyInfo(input$threshhold, storage$criterions_leaves, storage$inconsistencies_leaves)
+    
   })
   
   #  > Save comparisons of leaf criterions
