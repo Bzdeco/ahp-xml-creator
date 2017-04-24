@@ -39,6 +39,26 @@ saaty_rates <- c(
   "9 times more important than"
 )
 
+saaty_rates_alt <- c(
+  "9 times worse than",
+  "8 times worse than",
+  "7 times worse than",
+  "6 times worse than",
+  "5 times worse than",
+  "4 times worse than",
+  "3 times worse than",
+  "2 times worse than",
+  "as good as",
+  "2 times better than",
+  "3 times better than",
+  "4 times better than",
+  "5 times better than",
+  "6 times better than",
+  "7 times better than",
+  "8 times better than",
+  "9 times better than"
+)
+
 saaty_rates_dict <- list(
   "9 times less important than" = 1/9,
   "8 times less important than" = 1/8,
@@ -57,6 +77,26 @@ saaty_rates_dict <- list(
   "7 times more important than" = 7,
   "8 times more important than" = 8,
   "9 times more important than" = 9
+)
+
+saaty_rates_alt_dict <- list(
+  "9 times worse than" = 1/9,
+  "8 times worse than" = 1/8,
+  "7 times worse than" = 1/7,
+  "6 times worse than" = 1/6,
+  "5 times worse than" = 1/5,
+  "4 times worse than" = 1/4,
+  "3 times worse than" = 1/3,
+  "2 times worse than" = 1/2,
+  "as good as" = 1,
+  "2 times better than" = 2,
+  "3 times better than" = 3,
+  "4 times better than" = 4,
+  "5 times better than" = 5,
+  "6 times better than" = 6,
+  "7 times better than" = 7,
+  "8 times better than" = 8,
+  "9 times better than" = 9
 )
 
 saaty_rates_values <- c(1/9, 1/8, 1/7, 1/6, 1/5, 1/4, 1/3, 1/2, 1, 2, 3, 4, 5, 6, 7, 8, 9)
@@ -206,7 +246,7 @@ relationsToList <- function() {
 }
 
 # Render inconsistency info about comparisons with regard to given criterions
-renderInconsistencyInfo <- function(threshhold, criterions, inconsistencies) {
+renderInconsistencyInfo <- function(threshold, criterions, inconsistencies) {
   
   container <- tags$div(style = "margin-top: 25px;")
   
@@ -214,7 +254,7 @@ renderInconsistencyInfo <- function(threshhold, criterions, inconsistencies) {
     inconsistency <- inconsistencies[[criterion]]
     info <- tags$p(paste("Inconsistency of", criterion, "comparisons:", inconsistency))
     
-    if(inconsistency > threshhold)
+    if(inconsistency > threshold)
       info <- tagAppendAttributes(info, style = "color: red; font-weight: bold;")
     else
       info <- tagAppendAttributes(info, style = "color: green;")
@@ -234,7 +274,8 @@ updateSelections <- function(session, selectedParent = "Goal") {
   updateSelectInput(session, "parent_select", choices = storage$criterions, selected = selectedParent)
   
   # Update delete selection dropdown
-  updateSelectInput(session, "del_crit_select", choices = storage$criterions)
+  deleteChoices <- storage$criterions[-1] # do not include "Goal" criterion
+  updateSelectInput(session, "del_crit_select", choices = deleteChoices)
   
   # Update delete alternative dropdown
   updateSelectInput(session, "del_alt_select", choices = storage$alternatives)
@@ -260,6 +301,9 @@ updateStorageRatios <- function(criterions) {
 
 # Update CR values for given criterions (leaf/non-leaf)
 updateStorageInconsistencies <- function(criterions) {
+  
+  if(length(criterions) < 1)
+    return(NULL)
   
   result <- list()
   
@@ -304,19 +348,23 @@ shinyServer(function(input, output, session) {
   #  > Add Criterion Button
   observeEvent(input$add_crit, {
     
-    # Update storage
-    storage$criterions <- append(storage$criterions, input$crit_name)
-    storage$source <- append(storage$source, input$parent_select)
-    storage$target <- append(storage$target, input$crit_name)
-    storage$criterions_leaves <- getCriterionsByType()$leaves
-    storage$criterions_nonleaves <- getCriterionsByType()$nonleaves
-    storage$ratios_nonleaves <- updateStorageRatios(storage$criterions_nonleaves)
-    storage$ratios_leaves <- updateStorageRatios(storage$criterions_leaves)
-    
-    updateStorageInconsistencies(storage$criterions_nonleaves)
-    updateStorageInconsistencies(storage$criterions_leaves)
-    updateSelections(session, selectedParent = input$parent_select)
-    updateGraph(output)
+    # Disable adding already existing criterions
+    if(!(input$crit_name %in% storage$criterions)) {
+      
+      # Update storage
+      storage$criterions <- append(storage$criterions, input$crit_name)
+      storage$source <- append(storage$source, input$parent_select)
+      storage$target <- append(storage$target, input$crit_name)
+      storage$criterions_leaves <- getCriterionsByType()$leaves
+      storage$criterions_nonleaves <- getCriterionsByType()$nonleaves
+      storage$ratios_nonleaves <- updateStorageRatios(storage$criterions_nonleaves)
+      storage$ratios_leaves <- updateStorageRatios(storage$criterions_leaves)
+      
+      updateStorageInconsistencies(storage$criterions_nonleaves)
+      updateStorageInconsistencies(storage$criterions_leaves)
+      updateSelections(session, selectedParent = input$parent_select)
+      updateGraph(output)
+    }
   })
   
   #  > Delete Criterion Button
@@ -459,7 +507,7 @@ shinyServer(function(input, output, session) {
   #  > Render information about inconsistencies in comparisons of criterions
   output$criterions_inconsistencies_info <- renderUI({
     
-    renderInconsistencyInfo(input$threshhold, storage$criterions_nonleaves, storage$inconsistencies_nonleaves)
+    renderInconsistencyInfo(input$threshold, storage$criterions_nonleaves, storage$inconsistencies_nonleaves)
     
   })
   
@@ -485,7 +533,7 @@ shinyServer(function(input, output, session) {
     # update storage$ratios_nonleaves and $inconsistencies_nonleaves with new values
     storage$ratios_nonleaves <- result
     updateStorageInconsistencies(storage$criterions_nonleaves)
-    print(storage$inconsistencies_nonleaves)
+
   })
   
   
@@ -515,8 +563,8 @@ shinyServer(function(input, output, session) {
             column(6, style = "margin-top: -25px;", selectInput(
               inputId = paste(criterion, k),
               label = "",
-              choices = saaty_rates,
-              selected = "as important as"
+              choices = saaty_rates_alt,
+              selected = "as good as"
             )),
             column(3, tags$span(paste(storage$alternatives[j])))
           ))
@@ -532,7 +580,7 @@ shinyServer(function(input, output, session) {
   #  > Render information about inconsistencies in comparisons of alternatives
   output$alternatives_inconsistencies_info <- renderUI({
     
-    renderInconsistencyInfo(input$threshhold, storage$criterions_leaves, storage$inconsistencies_leaves)
+    renderInconsistencyInfo(input$threshold, storage$criterions_leaves, storage$inconsistencies_leaves)
     
   })
   
@@ -548,7 +596,7 @@ shinyServer(function(input, output, session) {
       if(n > 1) {
         for(i in seq(1, count)) {
           option <- input[[paste(criterion, i)]] # value selected in according selectInput
-          ratios <- append(ratios, saaty_rates_dict[[option]])
+          ratios <- append(ratios, saaty_rates_alt_dict[[option]])
         }
       }
       
@@ -558,7 +606,6 @@ shinyServer(function(input, output, session) {
     # update storage$ratios_leaves and $inconsistencies_leaves with new values
     storage$ratios_leaves <- result
     updateStorageInconsistencies(storage$criterions_leaves)
-    print(storage$inconsistencies_leaves)
 
   })
   
@@ -574,8 +621,3 @@ shinyServer(function(input, output, session) {
   )
   
 })
-
-### test
-# m <- ratiosToMatrix(c(2, 3, 5))
-# print(evaluateCR(m))
-# print(saaty_rates_dict)

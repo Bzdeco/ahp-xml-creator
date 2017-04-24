@@ -46,7 +46,7 @@ shinyUI(navbarPage("AHP Criteria Tree XML Creator",
       fluidRow(
         column(6, uiOutput("rate_criterions_ratios")),
         column(3, offset = 3,
-          numericInput("threshhold", "Inconsistency threshhold", 0.1, min = 0, max = 1, step = 0.01, width = "80%"),
+          numericInput("threshold", "Inconsistency threshold", 0.1, min = 0, max = 1, step = 0.01, width = "80%"),
           actionButton("save_criterions_ratios", "Save & Check", style = "width: 80%;"),
           uiOutput("criterions_inconsistencies_info")
         )
